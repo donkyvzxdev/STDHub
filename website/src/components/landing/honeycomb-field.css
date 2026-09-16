@@ -1,0 +1,25 @@
+/* Honeycomb field: a seamless SVG tile draws the hexagon outlines; solid DOM
+   hexagons on top fill (100%) on the pointed cell plus its first ring while
+   the cursor is near. One plain CSS transition does the smoothing.
+   Decorative only. */
+
+.hf-spot {
+  position: absolute;
+  width: 56px;
+  height: 48.5px;
+}
+
+.hf-fill {
+  position: absolute;
+  inset: 0;
+  background: currentColor;
+  clip-path: polygon(100% 50%, 75% 100%, 25% 100%, 0 50%, 25% 0, 75% 0);
+  opacity: 0;
+  transition: opacity 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hf-fill {
+    transition: none;
+  }
+}

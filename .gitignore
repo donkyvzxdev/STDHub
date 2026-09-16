@@ -1,0 +1,24 @@
+# Segredos locais — nunca commitar
+.env
+.env.local
+.env.*.local
+
+# Deps e build
+node_modules/
+dist/
+build/
+out/
+
+# Playwright e2e
+test-results/
+playwright-report/
+
+# Tauri / Rust (vale para app/ e mobile/)
+**/src-tauri/target/
+**/src-tauri/gen/
+
+# OS / editores
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
