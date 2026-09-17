@@ -1,6 +1,6 @@
 # STDHub
 
-Local-first study app (Tauri + Web) + marketing website. Spec-driven: see `spec.md`, `plan.md`, `task.md`.
+Local-first study app.
 
 ## Prereqs
 
