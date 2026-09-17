@@ -278,7 +278,391 @@ describe('T05 shell', () => {
     fireEvent.click(sidebarButton(/calculator/i))
     openTabMenu('Calculator')
     fireEvent.click(screen.getByRole('menuitem', { name: /dock to the right/i }))
-    expect(screen.getByText(/docked on the right/i)).toBeTruthy()
+    expect(screen.getByText(/this tab is docked/i)).toBeTruthy()
+  })
+
+  it('docks a function tab to the bottom from its menu', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the bottom/i }))
+    const dock = screen.getByTestId('function-bottom-dock')
+    expect(dock.getAttribute('style')).toContain('height: 224px')
+    expect(within(dock).getByRole('tab', { name: 'Calculator' })).toBeTruthy()
+    expect(
+      within(screen.getByTestId('shell-tabs')).queryByRole('tab', {
+        name: 'Calculator',
+      }),
+    ).toBeNull()
+    expect(
+      within(dock).getByRole('textbox', { name: /expression/i }),
+    ).toBeTruthy()
+    // The bottom dock stacks above the terminal panel.
+    const term = screen.getByTestId('terminal-bottom-slot')
+    expect(dock.compareDocumentPosition(term) & 4).toBe(4)
+  })
+
+  it('docks a function tab to the left from its menu', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/tutor/i))
+    openTabMenu('Tutor')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the left/i }))
+    const slot = screen.getByTestId('function-left-slot')
+    expect(slot.getAttribute('style')).toContain('width: 360px')
+    expect(
+      within(slot).getByRole('tab', { name: 'Tutor' }),
+    ).toBeTruthy()
+    expect(
+      within(screen.getByTestId('shell-tabs')).queryByRole('tab', {
+        name: 'Tutor',
+      }),
+    ).toBeNull()
+  })
+
+  it('drags tabs onto the left slot and the bottom dock', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    fireEvent.click(sidebarButton(/research/i))
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    function dragTabTo(name: string, target: Element): void {
+      doc.elementFromPoint = () => target
+      try {
+        const tab = within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+          name,
+        })
+        fireEvent.pointerDown(tab, { button: 0, clientX: 10, clientY: 10 })
+        fireEvent.pointerMove(tab, { clientX: 60, clientY: 60 })
+        fireEvent.pointerUp(tab, { clientX: 60, clientY: 60 })
+      } finally {
+        if (real) doc.elementFromPoint = real
+        else delete doc.elementFromPoint
+      }
+    }
+    const left = screen.getByTestId('function-left-slot')
+    const bottom = screen.getByTestId('function-bottom-dock')
+    dragTabTo('Calculator', left)
+    dragTabTo('Research', bottom)
+    expect(left.getAttribute('style')).toContain('width: 360px')
+    expect(
+      within(left).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+    expect(bottom.getAttribute('style')).toContain('height: 224px')
+    expect(
+      within(bottom).getByRole('tab', { name: 'Research' }),
+    ).toBeTruthy()
+  })
+
+  it('undocks from the left and bottom back to the main area', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    fireEvent.click(sidebarButton(/tutor/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the left/i }))
+    openTabMenu('Tutor')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the bottom/i }))
+    openTabMenu('Calculator', 'function-left-slot')
+    fireEvent.click(screen.getByRole('menuitem', { name: /move to main/i }))
+    openTabMenu('Tutor', 'function-bottom-dock')
+    fireEvent.click(screen.getByRole('menuitem', { name: /move to main/i }))
+    expect(
+      screen.getByTestId('function-left-slot').getAttribute('style'),
+    ).toContain('width: 0px')
+    expect(
+      screen.getByTestId('function-bottom-dock').getAttribute('class'),
+    ).toContain('h-0')
+    expect(
+      within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+        name: 'Calculator',
+      }),
+    ).toBeTruthy()
+    expect(
+      within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+        name: 'Tutor',
+      }),
+    ).toBeTruthy()
+  })
+
+  it('keeps each dock group independent with positional labels', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    fireEvent.click(sidebarButton(/research/i))
+    fireEvent.click(sidebarButton(/tutor/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the left/i }))
+    openTabMenu('Tutor')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the bottom/i }))
+    const left = screen.getByTestId('function-left-slot')
+    const bottom = screen.getByTestId('function-bottom-dock')
+    const main = screen.getByTestId('shell-tabs')
+    // Labels follow the tab, so each group reads its own names.
+    expect(within(left).getByRole('tab', { name: 'Calculator' })).toBeTruthy()
+    expect(
+      within(bottom).getByRole('tab', { name: 'Tutor' }),
+    ).toBeTruthy()
+    expect(
+      within(main).getByRole('tab', { name: 'Research' }),
+    ).toBeTruthy()
+    expect(within(main).queryByRole('tab', { name: 'Calculator' })).toBeNull()
+    expect(within(left).queryByRole('tab', { name: 'Tutor' })).toBeNull()
+  })
+
+  it('drags a tab from one dock straight to another', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the right/i }))
+    const right = screen.getByTestId('function-right-slot')
+    const left = screen.getByTestId('function-left-slot')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => left
+    try {
+      const tab = within(right).getByRole('tab', { name: 'Calculator' })
+      fireEvent.pointerDown(tab, { button: 0, clientX: 900, clientY: 400 })
+      fireEvent.pointerMove(tab, { clientX: 200, clientY: 400 })
+      fireEvent.pointerUp(tab, { clientX: 200, clientY: 400 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    expect(left.getAttribute('style')).toContain('width: 360px')
+    expect(right.getAttribute('style')).toContain('width: 0px')
+    expect(
+      within(left).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+  })
+
+  it('drags a docked tab back to the main bar', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the bottom/i }))
+    const bottom = screen.getByTestId('function-bottom-dock')
+    const bar = screen.getByTestId('shell-tabs')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => bar
+    try {
+      const tab = within(bottom).getByRole('tab', { name: 'Calculator' })
+      fireEvent.pointerDown(tab, { button: 0, clientX: 640, clientY: 700 })
+      fireEvent.pointerMove(tab, { clientX: 640, clientY: 120 })
+      fireEvent.pointerUp(tab, { clientX: 640, clientY: 120 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    expect(bottom.getAttribute('class')).toContain('h-0')
+    expect(
+      within(bar).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+  })
+
+  it('lands a near miss on the closest collapsed slot', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    const left = screen.getByTestId('function-left-slot')
+    const right = screen.getByTestId('function-right-slot')
+    const bottom = screen.getByTestId('function-bottom-dock')
+    vi.spyOn(left, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 0, width: 0, height: 800,
+      top: 0, left: 0, bottom: 800, right: 0,
+    } as DOMRect)
+    vi.spyOn(right, 'getBoundingClientRect').mockReturnValue({
+      x: 5000, y: 0, width: 0, height: 800,
+      top: 0, left: 5000, bottom: 800, right: 5000,
+    } as DOMRect)
+    vi.spyOn(bottom, 'getBoundingClientRect').mockReturnValue({
+      x: 0, y: 5000, width: 1280, height: 0,
+      top: 5000, left: 0, bottom: 5000, right: 1280,
+    } as DOMRect)
+    // The pointer lands on plain content next to the collapsed left slot:
+    // no element to hit, but close enough to dock left.
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => document.body
+    try {
+      const tab = within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+        name: 'Calculator',
+      })
+      fireEvent.pointerDown(tab, { button: 0, clientX: 10, clientY: 400 })
+      fireEvent.pointerMove(tab, { clientX: 30, clientY: 400 })
+      fireEvent.pointerUp(tab, { clientX: 30, clientY: 400 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    expect(left.getAttribute('style')).toContain('width: 360px')
+    expect(right.getAttribute('style')).toContain('width: 0px')
+  })
+
+  it('ignores drops far from every slot', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => document.body
+    try {
+      const tab = within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+        name: 'Calculator',
+      })
+      fireEvent.pointerDown(tab, { button: 0, clientX: 10, clientY: 10 })
+      fireEvent.pointerMove(tab, { clientX: 5000, clientY: 5000 })
+      fireEvent.pointerUp(tab, { clientX: 5000, clientY: 5000 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    // Still in the main bar, nothing docked anywhere.
+    expect(
+      within(screen.getByTestId('shell-tabs')).getByRole('tab', {
+        name: 'Calculator',
+      }),
+    ).toBeTruthy()
+    expect(
+      screen.getByTestId('function-right-slot').getAttribute('style'),
+    ).toContain('width: 0px')
+    expect(
+      screen.getByTestId('function-left-slot').getAttribute('style'),
+    ).toContain('width: 0px')
+    expect(
+      screen.getByTestId('function-bottom-dock').getAttribute('class'),
+    ).toContain('h-0')
+  })
+
+  it('resizes the right dock by dragging its handle', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the right/i }))
+    const slot = screen.getByTestId('function-right-slot')
+    expect(slot.getAttribute('style')).toContain('width: 360px')
+    const handle = within(slot).getByTestId('dock-right-resize')
+    fireEvent.mouseDown(handle, { button: 0, clientX: 900 })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mousemove', { clientX: 800 }))
+    })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mouseup'))
+    })
+    expect(slot.getAttribute('style')).toContain('width: 460px')
+    expect(window.localStorage.getItem('stdhub.dock-right-width')).toBe('460')
+  })
+
+  it('resizes the left dock by dragging its handle', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the left/i }))
+    const slot = screen.getByTestId('function-left-slot')
+    expect(slot.getAttribute('style')).toContain('width: 360px')
+    const handle = within(slot).getByTestId('dock-left-resize')
+    fireEvent.mouseDown(handle, { button: 0, clientX: 400 })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mousemove', { clientX: 300 }))
+    })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mouseup'))
+    })
+    expect(slot.getAttribute('style')).toContain('width: 260px')
+    expect(window.localStorage.getItem('stdhub.dock-left-width')).toBe('260')
+  })
+
+  it('resizes the bottom dock by dragging its handle', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the bottom/i }))
+    const dock = screen.getByTestId('function-bottom-dock')
+    expect(dock.getAttribute('style')).toContain('height: 224px')
+    const handle = within(dock).getByTestId('dock-bottom-resize')
+    fireEvent.mouseDown(handle, { button: 0, clientY: 600 })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mousemove', { clientY: 500 }))
+    })
+    act(() => {
+      window.dispatchEvent(new window.MouseEvent('mouseup'))
+    })
+    expect(dock.getAttribute('style')).toContain('height: 324px')
+    expect(window.localStorage.getItem('stdhub.dock-bottom-height')).toBe('324')
+  })
+
+  it('keeps the Notebook visible when a docked tab takes focus', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/notebook/i))
+    fireEvent.click(sidebarButton(/calculator/i))
+    openTabMenu('Calculator')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the right/i }))
+    // Focusing the docked tab must not wipe the center: the Notebook
+    // (no folder yet) stays instead of the docked hint.
+    const docked = within(screen.getByTestId('function-right-slot')).getByRole(
+      'tab',
+      { name: 'Calculator' },
+    )
+    fireEvent.click(within(docked).getByRole('button', { name: 'Calculator' }))
+    expect(screen.getByText(/no folder open/i)).toBeTruthy()
+    expect(screen.queryByText(/this tab is docked/i)).toBeNull()
+  })
+
+  it('keeps the last main tab visible when a docked tab takes focus', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/calculator/i))
+    fireEvent.click(sidebarButton(/research/i))
+    openTabMenu('Research')
+    fireEvent.click(screen.getByRole('menuitem', { name: /dock to the right/i }))
+    // Main still shows the calculator (last main tab), not the hint.
+    expect(
+      screen.getByRole('textbox', { name: /expression/i }),
+    ).toBeTruthy()
+    expect(screen.queryByText(/this tab is docked/i)).toBeNull()
+    // Focusing the docked tab keeps the calculator in the center too.
+    const docked = within(screen.getByTestId('function-right-slot')).getByRole(
+      'tab',
+      { name: 'Research' },
+    )
+    fireEvent.click(within(docked).getByRole('button', { name: 'Research' }))
+    expect(
+      screen.getByRole('textbox', { name: /expression/i }),
+    ).toBeTruthy()
+    expect(screen.queryByText(/this tab is docked/i)).toBeNull()
   })
 
   it('closes the focused tab with Delete', () => {

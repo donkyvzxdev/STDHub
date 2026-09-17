@@ -70,14 +70,37 @@ const FUNCTIONS: { id: FunctionId; icon: LucideIcon }[] = [
 const PANEL_MIN = 180
 const PANEL_MAX = 480
 
+/** How close (px) the drag cursor must be for a dock slot to light up. */
+const DOCK_NEAR_MARGIN = 80
+
+const DOCK_MIN_W = 240
+const DOCK_MAX_W = 720
+const DOCK_MIN_H = 120
+const DOCK_MAX_H = 480
+
+function readDockSize(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const raw = window.localStorage.getItem(key)
+    const parsed = raw ? Number.parseInt(raw, 10) : NaN
+    if (Number.isFinite(parsed)) return Math.min(max, Math.max(min, parsed))
+  } catch {
+    // Storage unavailable — fall back to the default size.
+  }
+  return fallback
+}
+
 /** Function tabs that can dock on the right (the editor stays put). */
 const DOCKABLE: FunctionId[] = ['calculator', 'research', 'chatbot']
 
 const TRIO: FunctionId[] = ['calculator', 'research', 'chatbot']
 
+type DockSide = 'left' | 'right' | 'bottom'
+
 interface TabsState {
   open: FunctionId[]
   active: FunctionId | null
+  /** Dock placement per tab; absent means the tab lives in the main area. */
+  dock: Partial<Record<FunctionId, DockSide>>
 }
 
 interface AppShellProps {
@@ -88,8 +111,10 @@ interface AppShellProps {
 function AppShell({ account, onLogout }: AppShellProps) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState<FunctionId | null>('editor')
-  const [tabs, setTabs] = useState<TabsState>({ open: [], active: null })
-  const [rightDock, setRightDock] = useState<FunctionId[]>([])
+  const [tabs, setTabs] = useState<TabsState>({ open: [], active: null, dock: {} })
+  // Last tab that lived in the main area: focusing a docked tab keeps the
+  // center on this instead of wiping it (e.g. the Notebook stays put).
+  const [lastMain, setLastMain] = useState<FunctionId | null>(null)
   const [draggingTab, setDraggingTab] = useState(false)
   const [tabGhost, setTabGhost] = useState<{
     id: FunctionId
@@ -104,6 +129,29 @@ function AppShell({ account, onLogout }: AppShellProps) {
   } | null>(null)
   const [mainHost, setMainHost] = useState<HTMLDivElement | null>(null)
   const [funcRightHost, setFuncRightHost] = useState<HTMLDivElement | null>(null)
+  const [funcLeftHost, setFuncLeftHost] = useState<HTMLDivElement | null>(null)
+  const [funcBottomHost, setFuncBottomHost] = useState<HTMLDivElement | null>(null)
+  // Slot frames for proximity: drop hints only light up while the drag
+  // cursor is near, and near-drops land even on a collapsed (0-size) slot.
+  const leftSlotRef = useRef<HTMLDivElement | null>(null)
+  const rightSlotRef = useRef<HTMLDivElement | null>(null)
+  const bottomDockRef = useRef<HTMLDivElement | null>(null)
+  const [dockLeftWidth, setDockLeftWidth] = useState(() =>
+    readDockSize('stdhub.dock-left-width', 360, DOCK_MIN_W, DOCK_MAX_W),
+  )
+  const [dockRightWidth, setDockRightWidth] = useState(() =>
+    readDockSize('stdhub.dock-right-width', 360, DOCK_MIN_W, DOCK_MAX_W),
+  )
+  const [dockBottomHeight, setDockBottomHeight] = useState(() =>
+    readDockSize('stdhub.dock-bottom-height', 224, DOCK_MIN_H, DOCK_MAX_H),
+  )
+  const [resizingDock, setResizingDock] = useState<
+    null | 'left' | 'right' | 'bottom'
+  >(null)
+  const dockDragRef = useRef<{
+    side: 'left' | 'right' | 'bottom'
+    latest: number
+  } | null>(null)
   const [panelWidth, setPanelWidth] = useState(240)
   const [panelOpen, setPanelOpen] = useState(true)
   const [resizing, setResizing] = useState(false)
@@ -192,6 +240,68 @@ function AppShell({ account, onLogout }: AppShellProps) {
     window.addEventListener('mouseup', onUp)
   }
 
+  // Function dock resize (same pattern as the terminal right dock and the
+  // explorer panel): sides grow toward the center, the bottom dock upward.
+  function onDockResizeDown(side: 'left' | 'right' | 'bottom') {
+    return (e: ReactMouseEvent): void => {
+      if (e.button !== 0) return
+      const startX = e.clientX
+      const startY = e.clientY
+      const startW = side === 'left' ? dockLeftWidth : dockRightWidth
+      const startH = dockBottomHeight
+      const storageKey =
+        side === 'left'
+          ? 'stdhub.dock-left-width'
+          : side === 'right'
+            ? 'stdhub.dock-right-width'
+            : 'stdhub.dock-bottom-height'
+      setResizingDock(side)
+      dockDragRef.current = {
+        side,
+        latest: side === 'bottom' ? startH : startW,
+      }
+      const onMove = (ev: MouseEvent): void => {
+        let next = dockDragRef.current?.latest ?? 0
+        if (side === 'left') {
+          next = Math.min(
+            DOCK_MAX_W,
+            Math.max(DOCK_MIN_W, startW + (ev.clientX - startX)),
+          )
+          setDockLeftWidth(next)
+        } else if (side === 'right') {
+          next = Math.min(
+            DOCK_MAX_W,
+            Math.max(DOCK_MIN_W, startW + (startX - ev.clientX)),
+          )
+          setDockRightWidth(next)
+        } else {
+          next = Math.min(
+            DOCK_MAX_H,
+            Math.max(DOCK_MIN_H, startH + (startY - ev.clientY)),
+          )
+          setDockBottomHeight(next)
+        }
+        if (dockDragRef.current) dockDragRef.current.latest = next
+      }
+      const onUp = (): void => {
+        const latest = dockDragRef.current?.latest
+        dockDragRef.current = null
+        setResizingDock(null)
+        if (latest != null) {
+          try {
+            window.localStorage.setItem(storageKey, String(latest))
+          } catch {
+            // Storage unavailable — size still applies this session.
+          }
+        }
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    }
+  }
+
   function nameOf(id: FunctionId): string {
     return t(`shell.${id}`)
   }
@@ -199,6 +309,7 @@ function AppShell({ account, onLogout }: AppShellProps) {
   function openTab(id: FunctionId): void {
     setSelected(id)
     setTabs((prev) => ({
+      ...prev,
       open: prev.open.includes(id) ? prev.open : [...prev.open, id],
       active: id,
     }))
@@ -212,30 +323,45 @@ function AppShell({ account, onLogout }: AppShellProps) {
     }))
   }
 
-  function dockTab(id: FunctionId): void {
-    if (!DOCKABLE.includes(id) || rightDock.includes(id)) return
-    setRightDock((prev) => [...prev, id])
+  function dockTab(id: FunctionId, side: DockSide = 'right'): void {
+    if (!DOCKABLE.includes(id) || tabs.dock[id] === side) return
+    if (tabs.active === id) {
+      // Docking the tab under the cursor must not strand the center on it:
+      // fall back to the most recently opened tab still in the main area.
+      const fallback =
+        [...tabs.open]
+          .reverse()
+          .find((t) => t !== id && tabs.dock[t] == null) ?? null
+      setLastMain(fallback)
+    }
+    setTabs((prev) =>
+      prev.dock[id] === side
+        ? prev
+        : { ...prev, dock: { ...prev.dock, [id]: side } },
+    )
   }
 
   function undockTab(id: FunctionId): void {
-    if (!rightDock.includes(id)) return
-    setRightDock((prev) => prev.filter((tab) => tab !== id))
-    setTabs((prev) => ({
-      ...prev,
-      active: id,
-    }))
+    setTabs((prev) => {
+      if (!(id in prev.dock)) return prev
+      const dock = { ...prev.dock }
+      delete dock[id]
+      return { ...prev, dock, active: id }
+    })
   }
 
   function closeTab(id: FunctionId): void {
     setTabs((prev) => {
       const open = prev.open.filter((tab) => tab !== id)
+      const dock = { ...prev.dock }
+      delete dock[id]
       return {
         open,
+        dock,
         active:
           prev.active === id ? (open[open.length - 1] ?? null) : prev.active,
       }
     })
-    setRightDock((prev) => prev.filter((tab) => tab !== id))
     // Selection (sidebar + panel) is deliberately untouched: closing a tab
     // never closes the explorer. Selection only changes on explicit clicks.
     if (id === 'editor' && tabs.open.includes('editor')) {
@@ -255,8 +381,14 @@ function AppShell({ account, onLogout }: AppShellProps) {
     if (id !== 'editor' && tabs.open.includes('editor')) {
       window.dispatchEvent(new CustomEvent('stdhub:editor-closed'))
     }
-    setRightDock((prev) => prev.filter((tab) => tab === id))
-    setTabs({ open: [id], active: id })
+    setTabs((prev) => {
+      const kept = prev.dock[id]
+      return {
+        open: [id],
+        active: id,
+        dock: kept ? { [id]: kept } : {},
+      }
+    })
   }
 
   function moveTab(id: FunctionId, dir: -1 | 1): void {
@@ -304,30 +436,89 @@ function AppShell({ account, onLogout }: AppShellProps) {
   }
 
   const activePanel = tabs.active && tabs.open.includes(tabs.active) ? tabs.active : null
-  const mainTabs = tabs.open.filter((id) => !rightDock.includes(id))
-  // The dock shows the active tab when docked, else its most recent one —
-  // each side keeps its own visible tab, like VSCode groups.
-  const dockActive =
-    activePanel && rightDock.includes(activePanel)
+  const mainTabs = tabs.open.filter((id) => tabs.dock[id] == null)
+  const dockedTabs = (side: DockSide): FunctionId[] =>
+    tabs.open.filter((id) => tabs.dock[id] === side)
+  const rightDockTabs = dockedTabs('right')
+  const leftDockTabs = dockedTabs('left')
+  const bottomDockTabs = dockedTabs('bottom')
+  // Each dock group shows the active tab when docked there, else its most
+  // recent one — every side keeps its own visible tab, like VSCode groups.
+  function dockActive(side: DockSide): FunctionId | null {
+    const list = dockedTabs(side)
+    if (list.length === 0) return null
+    return activePanel != null && tabs.dock[activePanel] === side
       ? activePanel
-      : (rightDock[rightDock.length - 1] ?? null)
+      : list[list.length - 1]
+  }
   // Main content follows the active tab while it lives in the main area;
-  // focusing a docked tab leaves the last main tab visible instead.
-  const mainVisible =
-    activePanel && TRIO.includes(activePanel) && !rightDock.includes(activePanel)
-      ? activePanel
+  // focusing a docked tab falls back to the last main tab instead of
+  // blanking the center (the Notebook never vanishes on a dock click).
+  const lastMainValid =
+    lastMain != null &&
+    tabs.open.includes(lastMain) &&
+    tabs.dock[lastMain] == null
+      ? lastMain
       : null
-  const showEditor = activePanel === 'editor'
+  const mainVisible =
+    activePanel && TRIO.includes(activePanel) && tabs.dock[activePanel] == null
+      ? activePanel
+      : lastMainValid && TRIO.includes(lastMainValid)
+        ? lastMainValid
+        : null
+  const showEditor =
+    activePanel === 'editor' ||
+    ((activePanel == null || tabs.dock[activePanel] != null) &&
+      lastMainValid === 'editor')
   const showDockHint =
-    activePanel !== null && !showEditor && mainVisible === null && rightDock.includes(activePanel)
+    activePanel !== null &&
+    !showEditor &&
+    mainVisible === null &&
+    tabs.dock[activePanel] != null
+
+  useEffect(() => {
+    if (activePanel && tabs.dock[activePanel] == null) {
+      setLastMain(activePanel)
+    }
+  }, [activePanel, tabs.dock])
 
   function activateDocked(id: FunctionId): void {
     setTabs((prev) => ({ ...prev, active: id }))
   }
 
+  // Drop hints stay hidden until the drag cursor comes near a slot, so an
+  // empty side never flashes open while dragging across the window.
+  const nearRight =
+    draggingTab && tabGhost
+      ? slotIsNear(rightSlotRef.current, tabGhost.x, tabGhost.y)
+      : false
+  const nearLeft =
+    draggingTab && tabGhost
+      ? slotIsNear(leftSlotRef.current, tabGhost.x, tabGhost.y)
+      : false
+  const nearBottom =
+    draggingTab && tabGhost
+      ? slotIsNear(bottomDockRef.current, tabGhost.x, tabGhost.y)
+      : false
+
   // Pointer-based tab drag (same pattern as explorer/terminal tabs):
-  // drop over the right dock to pin it there, over the main tab bar to
-  // bring it back. The editor is not dockable.
+  // drop over a dock slot to pin it there, over the main tab bar to
+  // bring it back. Dragging starts from the main bar AND from inside a
+  // dock, so tabs move directly between sides. The editor is not dockable.
+  function slotIsNear(
+    el: HTMLDivElement | null,
+    clientX: number,
+    clientY: number,
+  ): boolean {
+    if (!el) return false
+    const rect = el.getBoundingClientRect()
+    return (
+      clientX >= rect.left - DOCK_NEAR_MARGIN &&
+      clientX <= rect.right + DOCK_NEAR_MARGIN &&
+      clientY >= rect.top - DOCK_NEAR_MARGIN &&
+      clientY <= rect.bottom + DOCK_NEAR_MARGIN
+    )
+  }
   function onTabPointerDown(e: ReactPointerEvent, id: FunctionId): void {
     if (e.button !== 0 || !DOCKABLE.includes(id)) return
     tabGestureRef.current = {
@@ -376,11 +567,33 @@ function AppShell({ account, onLogout }: AppShellProps) {
     if (!gesture || !gesture.active) return
     const hit = safeElementFromPoint(clientX, clientY)
     if (hit?.closest?.('[data-testid="function-right-slot"]')) {
-      dockTab(gesture.id)
+      dockTab(gesture.id, 'right')
+      return
+    }
+    if (hit?.closest?.('[data-testid="function-left-slot"]')) {
+      dockTab(gesture.id, 'left')
+      return
+    }
+    if (hit?.closest?.('[data-testid="function-bottom-dock"]')) {
+      dockTab(gesture.id, 'bottom')
       return
     }
     if (hit?.closest?.('[data-testid="shell-tabs"]')) {
       undockTab(gesture.id)
+      return
+    }
+    // Near miss: the pointer landed next to a collapsed slot (which has no
+    // area to hit-test against), so proximity decides the drop target.
+    if (slotIsNear(rightSlotRef.current, clientX, clientY)) {
+      dockTab(gesture.id, 'right')
+      return
+    }
+    if (slotIsNear(leftSlotRef.current, clientX, clientY)) {
+      dockTab(gesture.id, 'left')
+      return
+    }
+    if (slotIsNear(bottomDockRef.current, clientX, clientY)) {
+      dockTab(gesture.id, 'bottom')
     }
   }
 
@@ -393,6 +606,65 @@ function AppShell({ account, onLogout }: AppShellProps) {
     detachTabGesture()
     setDraggingTab(false)
     setTabGhost(null)
+  }
+
+  // Shared tab strip for the three function dock groups (left, right,
+  // bottom): same behavior, only the placement differs.
+  function renderDockTabs(side: DockSide) {
+    const list = dockedTabs(side)
+    const active = dockActive(side)
+    return (
+      <div className="flex items-center gap-1 border-b px-2">
+        <div
+          role="tablist"
+          aria-label={t('shell.rightDockTitle')}
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1.5"
+        >
+          {list.map((id) => (
+            <div
+              key={id}
+              role="tab"
+              aria-selected={active === id}
+              onPointerDown={(e) => onTabPointerDown(e, id)}
+            >
+              <ContextMenu>
+                <ContextMenuTrigger className="flex items-center rounded-md">
+                  <button
+                    type="button"
+                    onClick={() => activateDocked(id)}
+                    className={
+                      active === id
+                        ? 'rounded-l-md bg-muted px-3 py-1.5 text-xs font-medium'
+                        : 'rounded-l-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground'
+                    }
+                  >
+                    {nameOf(id)}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={t('shell.close', { name: nameOf(id) })}
+                    onClick={() => closeTab(id)}
+                    className="rounded-r-md px-1.5 py-1.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-3.5" aria-hidden />
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ContextMenuGroup>
+                    <ContextMenuItem onClick={() => closeTab(id)}>
+                      {t('shell.close', { name: nameOf(id) })}
+                    </ContextMenuItem>
+                    <ContextMenuItem onClick={() => undockTab(id)}>
+                      {t('shell.undock')}
+                    </ContextMenuItem>
+                  </ContextMenuGroup>
+                </ContextMenuContent>
+              </ContextMenu>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -587,8 +859,14 @@ function AppShell({ account, onLogout }: AppShellProps) {
                         {DOCKABLE.includes(id) ? (
                           <>
                             <ContextMenuSeparator />
-                            <ContextMenuItem onClick={() => dockTab(id)}>
+                            <ContextMenuItem onClick={() => dockTab(id, 'right')}>
                               {t('shell.dockRight')}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => dockTab(id, 'bottom')}>
+                              {t('shell.dockBottom')}
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => dockTab(id, 'left')}>
+                              {t('shell.dockLeft')}
                             </ContextMenuItem>
                           </>
                         ) : null}
@@ -604,6 +882,42 @@ function AppShell({ account, onLogout }: AppShellProps) {
             className="flex min-h-0 flex-1 flex-col"
           >
             <div className="flex min-h-0 min-w-0 flex-1 flex-row">
+            {/* Function left dock: right after the explorer panel (or in its
+                place when the panel is hidden), before the main content. */}
+            <div
+              data-testid="function-left-slot"
+              ref={leftSlotRef}
+              style={{
+                width:
+                  leftDockTabs.length > 0
+                    ? dockLeftWidth
+                    : draggingTab && nearLeft
+                      ? 96
+                      : 0,
+              }}
+              className={`relative flex shrink-0 flex-col overflow-hidden ${
+                resizingDock === 'left'
+                  ? ''
+                  : 'transition-[width] duration-200 ease-out'
+              } ${
+                draggingTab && nearLeft
+                  ? 'border-r-2 border-dashed border-primary/60 bg-primary/5'
+                  : ''
+              }`}
+            >
+              {leftDockTabs.length > 0 ? renderDockTabs('left') : null}
+              <div ref={setFuncLeftHost} className="min-h-0 flex-1" />
+              {leftDockTabs.length > 0 ? (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={t('shell.resizePanel')}
+                  data-testid="dock-left-resize"
+                  onMouseDown={onDockResizeDown('left')}
+                  className="absolute top-0 right-0 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-accent"
+                />
+              ) : null}
+            </div>
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               <div
                 hidden={!showEditor}
@@ -629,68 +943,37 @@ function AppShell({ account, onLogout }: AppShellProps) {
             </div>
             <div
               data-testid="function-right-slot"
+              ref={rightSlotRef}
               style={{
                 width:
-                  rightDock.length > 0 ? 360 : draggingTab ? 96 : 0,
+                  rightDockTabs.length > 0
+                    ? dockRightWidth
+                    : draggingTab && nearRight
+                      ? 96
+                      : 0,
               }}
-              className={`relative flex shrink-0 flex-col overflow-hidden transition-[width] duration-200 ease-out ${
-                draggingTab && rightDock.length === 0
+              className={`relative flex shrink-0 flex-col overflow-hidden ${
+                resizingDock === 'right'
+                  ? ''
+                  : 'transition-[width] duration-200 ease-out'
+              } ${
+                draggingTab && nearRight
                   ? 'border-l-2 border-dashed border-primary/60 bg-primary/5'
                   : ''
               }`}
             >
-              {rightDock.length > 0 ? (
-                <div className="flex items-center gap-1 border-b px-2">
-                  <div
-                    role="tablist"
-                    aria-label={t('shell.rightDockTitle')}
-                    className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-1.5"
-                  >
-                    {rightDock.map((id) => (
-                      <div
-                        key={id}
-                        role="tab"
-                        aria-selected={dockActive === id}
-                      >
-                        <ContextMenu>
-                          <ContextMenuTrigger className="flex items-center rounded-md">
-                            <button
-                              type="button"
-                              onClick={() => activateDocked(id)}
-                              className={
-                                dockActive === id
-                                  ? 'rounded-l-md bg-muted px-3 py-1.5 text-xs font-medium'
-                                  : 'rounded-l-md px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground'
-                              }
-                            >
-                              {nameOf(id)}
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={t('shell.close', { name: nameOf(id) })}
-                              onClick={() => closeTab(id)}
-                              className="rounded-r-md px-1.5 py-1.5 text-muted-foreground hover:text-foreground"
-                            >
-                              <X className="size-3.5" aria-hidden />
-                            </button>
-                          </ContextMenuTrigger>
-                          <ContextMenuContent>
-                            <ContextMenuGroup>
-                              <ContextMenuItem onClick={() => closeTab(id)}>
-                                {t('shell.close', { name: nameOf(id) })}
-                              </ContextMenuItem>
-                              <ContextMenuItem onClick={() => undockTab(id)}>
-                                {t('shell.undock')}
-                              </ContextMenuItem>
-                            </ContextMenuGroup>
-                          </ContextMenuContent>
-                        </ContextMenu>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
+              {rightDockTabs.length > 0 ? renderDockTabs('right') : null}
               <div ref={setFuncRightHost} className="min-h-0 flex-1" />
+              {rightDockTabs.length > 0 ? (
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label={t('shell.resizePanel')}
+                  data-testid="dock-right-resize"
+                  onMouseDown={onDockResizeDown('right')}
+                  className="absolute top-0 bottom-0 left-0 z-10 w-1.5 cursor-col-resize hover:bg-accent"
+                />
+              ) : null}
             </div>
               <div
                 data-testid="terminal-right-slot"
@@ -725,6 +1008,41 @@ function AppShell({ account, onLogout }: AppShellProps) {
                 ) : null}
               </div>
             </div>
+            {/* Function bottom dock: above the terminal panel, same pattern
+                as the side slots. Dropping here stacks it over the terminal. */}
+            <div
+              data-testid="function-bottom-dock"
+              ref={bottomDockRef}
+              style={
+                bottomDockTabs.length > 0
+                  ? { height: dockBottomHeight }
+                  : undefined
+              }
+              className={`relative flex shrink-0 flex-col overflow-hidden ${
+                resizingDock === 'bottom'
+                  ? ''
+                  : 'transition-[height] duration-200 ease-out'
+              } ${
+                bottomDockTabs.length > 0
+                  ? 'border-t'
+                  : draggingTab && nearBottom
+                    ? 'h-16 border-t-2 border-dashed border-primary/60 bg-primary/5'
+                    : 'h-0'
+              }`}
+            >
+              {bottomDockTabs.length > 0 ? renderDockTabs('bottom') : null}
+              <div ref={setFuncBottomHost} className="min-h-0 flex-1" />
+              {bottomDockTabs.length > 0 ? (
+                <div
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label={t('shell.resizePanel')}
+                  data-testid="dock-bottom-resize"
+                  onMouseDown={onDockResizeDown('bottom')}
+                  className="absolute top-0 right-0 left-0 z-10 h-1.5 cursor-row-resize hover:bg-accent"
+                />
+              ) : null}
+            </div>
             <div
               data-testid="terminal-bottom-slot"
               ref={setBottomHost}
@@ -733,22 +1051,29 @@ function AppShell({ account, onLogout }: AppShellProps) {
               }`}
             />
           </div>
-          {/* Function views stay mounted here and portal into the main or
-              right dock — moving a tab never loses its state. */}
+          {/* Function views stay mounted here and portal into the main area
+              or one of the three docks — moving a tab never loses state. */}
           {tabs.open
             .filter((id) => TRIO.includes(id))
             .map((id) => {
-              const docked = rightDock.includes(id)
-              const host = docked ? funcRightHost : mainHost
+              const side = tabs.dock[id] ?? null
+              const host =
+                side === 'right'
+                  ? funcRightHost
+                  : side === 'left'
+                    ? funcLeftHost
+                    : side === 'bottom'
+                      ? funcBottomHost
+                      : mainHost
               if (!host) return null
-              const visible = docked ? dockActive === id : mainVisible === id
+              const visible = side ? dockActive(side) === id : mainVisible === id
               return (
                 <Fragment key={id}>
                   {createPortal(
                     <div
                       hidden={!visible}
                       className={
-                        docked
+                        side
                           ? 'flex h-full min-h-0 flex-col'
                           : 'flex min-h-0 flex-1 flex-col'
                       }

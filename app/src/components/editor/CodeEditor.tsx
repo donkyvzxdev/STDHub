@@ -19,6 +19,20 @@ interface CodeEditorProps {
 }
 
 /**
+ * Suggest behavior for every language: built-in services (TS/JS/JSON/CSS/
+ * HTML workers) plus word completions from the open document — so code and
+ * Markdown both suggest out of the box. The STDHub-specific source plugs in
+ * through `registerCompletionSource` (see `@/lib/completion`).
+ */
+export const MONACO_SUGGEST_OPTIONS = {
+  quickSuggestions: { other: true, comments: false, strings: false },
+  suggestOnTriggerCharacters: true,
+  wordBasedSuggestions: 'currentDocument',
+  tabCompletion: 'on',
+  acceptSuggestionOnEnter: 'on',
+} as const
+
+/**
  * Self-hosted Monaco editor (no CDN). Mounts once per file — the parent
  * remounts via `key` when switching files, so mount props stay valid for the
  * lifetime of the instance. Callbacks flow through a ref updated each render.
@@ -62,6 +76,7 @@ function CodeEditor({
           automaticLayout: true,
           renderWhitespace: 'selection',
           tabSize: 2,
+          ...MONACO_SUGGEST_OPTIONS,
         })
         registerCompletionSource(markdownSource)
         installCompletions(monaco, ['markdown'])

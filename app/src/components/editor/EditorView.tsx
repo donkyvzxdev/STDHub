@@ -713,7 +713,7 @@ function EditorView({
             onCloseAll={closeAll}
             onSave={() => void saveActiveRef.current()}
           />
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-hidden">
           {activeFile ? (
             activeFile.kind === 'image' && activeFile.blobUrl ? (
               <div className="flex h-full items-center justify-center overflow-auto p-4">

@@ -15,15 +15,20 @@ export type AccentId =
   | 'violet'
   | 'rose'
 export type Density = 'comfortable' | 'compact'
-export type AiPresetId =
-  | 'pollinations'
-  | 'openai'
-  | 'openrouter'
-  | 'deepseek'
-  | 'groq'
-  | 'ollama'
-  | 'custom'
-export type SearchProviderId = 'duckduckgo' | 'brave'
+export type {
+  AiConfig,
+  AiPresetId,
+  SearchConfig,
+  SearchProviderId,
+} from './providerSchemas'
+import {
+  DEFAULT_AI_CONFIG,
+  DEFAULT_SEARCH_CONFIG,
+  sanitizeAiConfig,
+  sanitizeSearchConfig,
+  type AiPresetId,
+  type SearchProviderId,
+} from './providerSchemas'
 
 export interface Settings {
   theme: {
@@ -48,17 +53,14 @@ export interface Settings {
 }
 
 export const DEFAULT_AI = {
-  preset: 'pollinations',
-  baseUrl: 'https://text.pollinations.ai/openai',
-  apiKey: '',
-  model: 'openai',
+  ...DEFAULT_AI_CONFIG,
 } as const
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: { mode: 'dark', accent: 'neutral', density: 'comfortable' },
   keys: { chatbot: '', search: '' },
   ai: { ...DEFAULT_AI },
-  search: { provider: 'duckduckgo', braveKey: '' },
+  search: { ...DEFAULT_SEARCH_CONFIG },
 }
 
 const ACCENTS: readonly AccentId[] = [
@@ -68,21 +70,6 @@ const ACCENTS: readonly AccentId[] = [
   'emerald',
   'violet',
   'rose',
-]
-
-const AI_PRESETS: readonly AiPresetId[] = [
-  'pollinations',
-  'openai',
-  'openrouter',
-  'deepseek',
-  'groq',
-  'ollama',
-  'custom',
-]
-
-const SEARCH_PROVIDERS: readonly SearchProviderId[] = [
-  'duckduckgo',
-  'brave',
 ]
 
 const STORAGE_KEY = 'stdhub.settings'
@@ -116,30 +103,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     if (typeof keys['chatbot'] === 'string') out.keys.chatbot = keys['chatbot']
     if (typeof keys['search'] === 'string') out.keys.search = keys['search']
   }
-  const ai = raw['ai']
-  if (isRecord(ai)) {
-    if (
-      typeof ai['preset'] === 'string' &&
-      (AI_PRESETS as readonly string[]).includes(ai['preset'])
-    ) {
-      out.ai.preset = ai['preset'] as AiPresetId
-    }
-    if (typeof ai['baseUrl'] === 'string') out.ai.baseUrl = ai['baseUrl']
-    if (typeof ai['apiKey'] === 'string') out.ai.apiKey = ai['apiKey']
-    if (typeof ai['model'] === 'string') out.ai.model = ai['model']
-  }
-  const search = raw['search']
-  if (isRecord(search)) {
-    if (
-      typeof search['provider'] === 'string' &&
-      (SEARCH_PROVIDERS as readonly string[]).includes(search['provider'])
-    ) {
-      out.search.provider = search['provider'] as SearchProviderId
-    }
-    if (typeof search['braveKey'] === 'string') {
-      out.search.braveKey = search['braveKey']
-    }
-  }
+  out.ai = sanitizeAiConfig(raw['ai'])
+  out.search = sanitizeSearchConfig(raw['search'])
   // Migrate pre-prototype keys so saved values keep working.
   if (out.ai.apiKey === '' && out.keys.chatbot !== '') {
     out.ai.apiKey = out.keys.chatbot
