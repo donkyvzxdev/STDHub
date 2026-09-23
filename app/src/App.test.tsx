@@ -558,6 +558,155 @@ describe('T05 shell', () => {
     ).toContain('h-0')
   })
 
+  it('drags a sidebar icon straight onto the right slot', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    const right = screen.getByTestId('function-right-slot')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => right
+    try {
+      const icon = sidebarButton(/calculator/i)
+      fireEvent.pointerDown(icon, { button: 0, clientX: 10, clientY: 300 })
+      fireEvent.pointerMove(icon, { clientX: 1100, clientY: 400 })
+      fireEvent.pointerUp(icon, { clientX: 1100, clientY: 400 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    // Opened AND docked in one gesture.
+    expect(right.getAttribute('style')).toContain('width: 360px')
+    expect(
+      within(right).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+    expect(
+      within(right).getByRole('textbox', { name: /expression/i }),
+    ).toBeTruthy()
+  })
+
+  it('drags a sidebar icon to the main bar to just open it', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    const bar = screen.getByTestId('shell-tabs')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => bar
+    try {
+      const icon = sidebarButton(/research/i)
+      fireEvent.pointerDown(icon, { button: 0, clientX: 10, clientY: 300 })
+      fireEvent.pointerMove(icon, { clientX: 400, clientY: 120 })
+      fireEvent.pointerUp(icon, { clientX: 400, clientY: 120 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    expect(
+      within(bar).getByRole('tab', { name: 'Research' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByTestId('function-right-slot').getAttribute('style'),
+    ).toContain('width: 0px')
+    expect(
+      screen.getByTestId('function-left-slot').getAttribute('style'),
+    ).toContain('width: 0px')
+  })
+
+  it('opens the tab on a near-miss sidebar drop', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    // No tabs open: the drop lands on plain content near the collapsed
+    // slots (all zero rects in jsdom, so (30,30) is near every one and the
+    // first checked — right — wins). Proximity still opens+docks.
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => document.body
+    try {
+      const icon = sidebarButton(/calculator/i)
+      fireEvent.pointerDown(icon, { button: 0, clientX: 10, clientY: 10 })
+      fireEvent.pointerMove(icon, { clientX: 30, clientY: 30 })
+      fireEvent.pointerUp(icon, { clientX: 30, clientY: 30 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    const right = screen.getByTestId('function-right-slot')
+    expect(right.getAttribute('style')).toContain('width: 360px')
+    expect(
+      within(right).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+  })
+
+    it('dragging never reselects the sidebar', () => {
+    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    fireEvent.click(sidebarButton(/notebook/i))
+    expect(screen.getByLabelText('Notebook panel')).toBeTruthy()
+    const right = screen.getByTestId('function-right-slot')
+    const bar = screen.getByTestId('shell-tabs')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    function drag(from: Element, target: Element, x: number, y: number): void {
+      doc.elementFromPoint = () => target
+      try {
+        fireEvent.pointerDown(from, { button: 0, clientX: 10, clientY: 300 })
+        fireEvent.pointerMove(from, { clientX: x, clientY: y })
+        fireEvent.pointerUp(from, { clientX: x, clientY: y })
+      } finally {
+        if (real) doc.elementFromPoint = real
+        else delete doc.elementFromPoint
+      }
+    }
+    // Icon straight to the dock: calculator docks, sidebar stays put.
+    drag(sidebarButton(/calculator/i), right, 1100, 400)
+    expect(right.getAttribute('style')).toContain('width: 360px')
+    expect(screen.getByLabelText('Notebook panel')).toBeTruthy()
+    // Docked tab back to the main bar: still no reselect.
+    const tab = within(right).getByRole('tab', { name: 'Calculator' })
+    drag(tab, bar, 400, 120)
+    expect(
+      within(bar).getByRole('tab', { name: 'Calculator' }),
+    ).toBeTruthy()
+    expect(screen.getByLabelText('Notebook panel')).toBeTruthy()
+  })
+
+  it('never drags the editor icon anywhere', () => {    seedLanguage()
+    render(<App />)
+    enterAsGuest()
+    const right = screen.getByTestId('function-right-slot')
+    const doc = document as unknown as {
+      elementFromPoint?: (x: number, y: number) => Element | null
+    }
+    const real = doc.elementFromPoint
+    doc.elementFromPoint = () => right
+    try {
+      const icon = sidebarButton(/notebook/i)
+      fireEvent.pointerDown(icon, { button: 0, clientX: 10, clientY: 300 })
+      fireEvent.pointerMove(icon, { clientX: 1100, clientY: 400 })
+      fireEvent.pointerUp(icon, { clientX: 1100, clientY: 400 })
+    } finally {
+      if (real) doc.elementFromPoint = real
+      else delete doc.elementFromPoint
+    }
+    expect(right.getAttribute('style')).toContain('width: 0px')
+    expect(
+      within(screen.getByTestId('shell-tabs')).queryByRole('tab', {
+        name: 'Notebook',
+      }),
+    ).toBeNull()
+  })
+
   it('resizes the right dock by dragging its handle', () => {
     seedLanguage()
     render(<App />)

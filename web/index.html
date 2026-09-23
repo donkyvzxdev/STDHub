@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="STDHub — seu caderno de estudos no computador. Notebook, calculadora, pesquisa, tutor e arquivos .stmd. 100% offline." />
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/landing.css" />
+  <title>STDHub — seu caderno de estudos</title>
+</head>
+<body>
+  <nav class="l-nav">
+    <div class="l-nav-inner">
+      <a class="brand" href="#">
+        <span class="brand-chip"><img src="assets/logo.svg" alt="STDHub" /></span>
+        STDHub
+      </a>
+      <div class="l-links" id="navLinks">
+        <a href="#recursos">Recursos</a>
+        <a href="#comparar">Comparar</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <div class="l-actions">
+        <a class="btn btn-outline btn-sm" href="app.html">Entrar</a>
+        <a class="btn btn-primary btn-sm" href="app.html">Começar de graça</a>
+      </div>
+      <button class="l-menu-btn" id="menuBtn" aria-label="Abrir menu">☰</button>
+    </div>
+  </nav>
+
+  <header class="l-hero">
+    <span class="badge">v0.1.0 — agora também no navegador</span>
+    <h1>Seu caderno de estudos<br />no computador</h1>
+    <p class="sub">Notebook com pastas locais, calculadora, pesquisa com resumos de IA, tutor e arquivos <strong>.stmd</strong> com flashcards e quiz. Privado por padrão, funciona offline.</p>
+    <div class="l-cta">
+      <a class="btn btn-primary" href="app.html">Abrir o app no navegador</a>
+      <a class="btn btn-outline" href="#recursos">Ver recursos</a>
+    </div>
+
+    <div class="mock" aria-hidden="true">
+      <div class="mock-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+      <div class="mock-body">
+        <div class="mock-side"><span>▤</span><span>▦</span><span>◉</span><span>✎</span><span>⚙</span></div>
+        <div class="mock-main">
+          <div class="mock-tabs"><span class="mock-tab active">guia.stmd</span><span class="mock-tab">ideias.md</span></div>
+          <div class="mock-flash"><strong>Quanto é 2+2?</strong><br /><span class="muted small">clique para virar</span></div>
+          <div class="mock-quiz"><strong>Capital do Brasil?</strong>
+            <div class="mock-opt">☐ São Paulo</div>
+            <div class="mock-opt right">☑ Brasília <span style="margin-left:auto">Correta</span></div>
+          </div>
+        </div>
+        <div class="mock-dock">
+          <div class="mock-tab active">Calculadora</div>
+          <div class="mock-calc-row"><span>2*(3+4)</span><strong>14</strong></div>
+          <div class="mock-calc-row"><span>√16</span><strong>4</strong></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <section class="l-section" id="recursos">
+    <h2>Tudo para estudar num lugar só</h2>
+    <p class="lead">Sem trocar de janela: anote, calcule, pesquise e pergunte ao tutor.</p>
+    <div class="l-grid">
+      <div class="card l-feat"><h3>📓 Notebook .stmd</h3><p>Markdown com marca-texto, flashcards que viram, quiz com correção, cálculos ao vivo e desenho à caneta.</p></div>
+      <div class="card l-feat"><h3>🔢 Calculadora</h3><p>Científica, com histórico, porcentagem e copiar em 1 clique. Entende <em>raiz de 9</em> e √.</p></div>
+      <div class="card l-feat"><h3>🌐 Pesquisa</h3><p>Pesquise e receba resumos por IA sem sair do app (com sua chave).</p></div>
+      <div class="card l-feat"><h3>🤖 Tutor</h3><p>Assistente de estudos com sua chave de API. Sem rede, o resto continua funcionando.</p></div>
+      <div class="card l-feat"><h3>🗂 Pastas locais</h3><p>Abra uma pasta no Chrome/Edge ou use arquivos de exemplo. Seus arquivos ficam com você.</p></div>
+      <div class="card l-feat"><h3>🔒 Privado e offline</h3><p>Modo visitante, sem conta. Chaves guardadas só no seu navegador.</p></div>
+    </div>
+  </section>
+
+  <section class="l-section" id="comparar">
+    <h2>Comparar</h2>
+    <p class="lead">STDHub junta o que você usaria em 3 apps separados.</p>
+    <div class="l-table-wrap">
+      <table class="l-compare">
+        <tr><th>Recurso</th><th>STDHub</th><th>Bloco de notas</th><th>Editores de código</th></tr>
+        <tr><td>Flashcards e quiz no arquivo</td><td class="yes">Sim</td><td>Não</td><td>Não</td></tr>
+        <tr><td>Calculadora embutida</td><td class="yes">Sim</td><td>Não</td><td>Não</td></tr>
+        <tr><td>Tutor com IA</td><td class="yes">Sim</td><td>Não</td><td>Não</td></tr>
+        <tr><td>100% offline</td><td class="yes">Sim</td><td>Sim</td><td>Sim</td></tr>
+        <tr><td>Privado por padrão</td><td class="yes">Sim</td><td>Varia</td><td>Sim</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section class="l-section" id="faq">
+    <h2>Perguntas frequentes</h2>
+    <p class="lead">O essencial antes de começar.</p>
+    <div class="l-faq">
+      <details><summary>Precisa de internet?</summary><p>Não. Tudo funciona offline; só a IA (tutor e resumos) precisa de rede e da sua chave de API.</p></details>
+      <details><summary>Precisa criar conta?</summary><p>Não. O modo visitante entra direto e nada sai da sua máquina.</p></details>
+      <details><summary>O que é um arquivo .stmd?</summary><p>É um Markdown com superpoderes de estudo: flashcards, quiz, cálculos e desenho — e continua abrindo em qualquer editor.</p></details>
+      <details><summary>Funciona no celular?</summary><p>Sim, o layout se adapta. Para instalar como app, use o APK do release no GitHub.</p></details>
+    </div>
+  </section>
+
+  <footer class="l-foot">
+    <div class="l-foot-inner">
+      <span class="brand-chip" style="width:1.5rem;height:1.5rem"><img src="assets/logo.svg" alt="" style="width:1.25rem;height:1.25rem" /></span>
+      <span>STDHub — feito para estudar.</span>
+      <span style="margin-left:auto" id="year"></span>
+    </div>
+  </footer>
+
+  <script src="js/landing.js"></script>
+</body>
+</html>

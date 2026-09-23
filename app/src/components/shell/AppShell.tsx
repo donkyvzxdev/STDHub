@@ -308,6 +308,11 @@ function AppShell({ account, onLogout }: AppShellProps) {
 
   function openTab(id: FunctionId): void {
     setSelected(id)
+    openTabSilent(id)
+  }
+
+  /** Opens (and focuses) a tab without touching sidebar selection. */
+  function openTabSilent(id: FunctionId): void {
     setTabs((prev) => ({
       ...prev,
       open: prev.open.includes(id) ? prev.open : [...prev.open, id],
@@ -519,6 +524,9 @@ function AppShell({ account, onLogout }: AppShellProps) {
       clientY <= rect.bottom + DOCK_NEAR_MARGIN
     )
   }
+  // Drags start from the main bar, from inside a dock, AND from the sidebar
+  // icons — dropping an icon opens its tab straight into the target,
+  // skipping the open-then-drag dance. The editor is not dockable.
   function onTabPointerDown(e: ReactPointerEvent, id: FunctionId): void {
     if (e.button !== 0 || !DOCKABLE.includes(id)) return
     tabGestureRef.current = {
@@ -566,33 +574,41 @@ function AppShell({ account, onLogout }: AppShellProps) {
     setTabGhost(null)
     if (!gesture || !gesture.active) return
     const hit = safeElementFromPoint(clientX, clientY)
-    if (hit?.closest?.('[data-testid="function-right-slot"]')) {
-      dockTab(gesture.id, 'right')
-      return
+    let side: DockSide | null = null
+    if (hit?.closest?.('[data-testid="function-right-slot"]')) side = 'right'
+    else if (hit?.closest?.('[data-testid="function-left-slot"]')) side = 'left'
+    else if (hit?.closest?.('[data-testid="function-bottom-dock"]')) {
+      side = 'bottom'
     }
-    if (hit?.closest?.('[data-testid="function-left-slot"]')) {
-      dockTab(gesture.id, 'left')
-      return
-    }
-    if (hit?.closest?.('[data-testid="function-bottom-dock"]')) {
-      dockTab(gesture.id, 'bottom')
+    if (side) {
+      // Sidebar drags land here with the tab still closed — open it first
+      // so the docked view actually mounts. Silent: dragging never
+      // reselects the sidebar.
+      openTabSilent(gesture.id)
+      dockTab(gesture.id, side)
       return
     }
     if (hit?.closest?.('[data-testid="shell-tabs"]')) {
-      undockTab(gesture.id)
+      const wasDocked = tabs.dock[gesture.id] != null
+      openTabSilent(gesture.id)
+      if (wasDocked) undockTab(gesture.id)
       return
     }
     // Near miss: the pointer landed next to a collapsed slot (which has no
     // area to hit-test against), so proximity decides the drop target.
+    // Like direct hits, sidebar drags open the tab first.
     if (slotIsNear(rightSlotRef.current, clientX, clientY)) {
+      openTabSilent(gesture.id)
       dockTab(gesture.id, 'right')
       return
     }
     if (slotIsNear(leftSlotRef.current, clientX, clientY)) {
+      openTabSilent(gesture.id)
       dockTab(gesture.id, 'left')
       return
     }
     if (slotIsNear(bottomDockRef.current, clientX, clientY)) {
+      openTabSilent(gesture.id)
       dockTab(gesture.id, 'bottom')
     }
   }
@@ -691,6 +707,11 @@ function AppShell({ account, onLogout }: AppShellProps) {
                         <ContextMenuTrigger>
                           <SidebarMenuButton
                             isActive={selected === id}
+                            onPointerDown={
+                              DOCKABLE.includes(id)
+                                ? (e) => onTabPointerDown(e, id)
+                                : undefined
+                            }
                             onClick={() => {
                               // Settings only opens its modal — never
                               // selects, never tabs. Anything else opens

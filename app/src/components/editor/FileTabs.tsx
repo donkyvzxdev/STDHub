@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next'
+import type { ReactNode } from 'react'
 import { Save, X } from 'lucide-react'
 import {
   ContextMenu,
@@ -25,6 +26,8 @@ interface FileTabsProps {
   onCloseOthers: (path: string) => void
   onCloseAll: () => void
   onSave: () => void
+  /** Extra controls at the right of the tab bar (e.g. StudyMD toggle). */
+  actions?: ReactNode
 }
 
 function FileTabs({
@@ -37,6 +40,7 @@ function FileTabs({
   onCloseOthers,
   onCloseAll,
   onSave,
+  actions,
 }: FileTabsProps) {
   const { t } = useTranslation()
   return (
@@ -104,6 +108,7 @@ function FileTabs({
           </div>
         ))}
       </div>
+      {actions}
       <button
         type="button"
         aria-label={t('explorer.save')}

@@ -13,6 +13,7 @@ import {
   Folder,
   FolderOpen,
   Image,
+  NotebookPen,
   X,
 } from 'lucide-react'
 import {
@@ -56,6 +57,8 @@ function NodeIcon({ node, open }: { node: FileNode; open: boolean }) {
   switch (iconKind(node.name)) {
     case 'md':
       return <FileText className={`${cls} text-zinc-200`} aria-hidden />
+    case 'stmd':
+      return <NotebookPen className={`${cls} text-amber-200`} aria-hidden />
     case 'ts':
       return <FileCode2 className={`${cls} text-[#3178c6]`} aria-hidden />
     case 'json':

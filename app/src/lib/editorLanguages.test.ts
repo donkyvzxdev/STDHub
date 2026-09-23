@@ -26,6 +26,12 @@ describe('T08 language map', () => {
     expect(iconKind('LICENSE')).toBe('file')
   })
 
+  it('maps StudyMD to its own language and icon', () => {
+    expect(getLanguageId('guia.stmd')).toBe('stmd')
+    expect(getLanguageId('GUIA.STMD')).toBe('stmd')
+    expect(iconKind('guia.stmd')).toBe('stmd')
+  })
+
   it('detects previewable images', () => {
     expect(imageMime('logo.png')).toBe('image/png')
     expect(imageMime('photo.JPG')).toBe('image/jpeg')

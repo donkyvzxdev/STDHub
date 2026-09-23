@@ -12,6 +12,7 @@ const BY_EXTENSION: Record<string, string> = {
   md: 'markdown',
   markdown: 'markdown',
   mdx: 'markdown',
+  stmd: 'stmd',
   css: 'css',
   scss: 'scss',
   less: 'less',
@@ -44,6 +45,7 @@ const BY_EXTENSION: Record<string, string> = {
 export type IconKind =
   | 'folder'
   | 'md'
+  | 'stmd'
   | 'ts'
   | 'json'
   | 'code'
@@ -85,6 +87,7 @@ export function iconKind(filename: string): IconKind {
   if (dot < 0) return 'file'
   const ext = filename.slice(dot + 1).toLowerCase()
   if (ext === 'md' || ext === 'markdown' || ext === 'mdx') return 'md'
+  if (ext === 'stmd') return 'stmd'
   if (TS_FAMILY.has(ext)) return 'ts'
   if (ext === 'json' || ext === 'jsonc') return 'json'
   if (IMAGE_FAMILY.has(ext)) return 'image'

@@ -707,3 +707,67 @@ describe('T07 explorer', () => {
     expect(screen.getByText('todo.md')).toBeTruthy()
   })
 })
+
+describe('T23 studymd', () => {
+  async function createFile(name: string): Promise<void> {
+    await screen.findByText('notes')
+    fireEvent.click(screen.getByRole('button', { name: 'New file' }))
+    fireEvent.change(screen.getByLabelText(/name/i), {
+      target: { value: name },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /^create$/i }))
+  }
+
+  async function openCreated(name: string): Promise<void> {
+    // The tab opens instantly; the tree row refreshes async.
+    await waitFor(() => row(name))
+    fireEvent.click(row(name))
+  }
+
+  it('creates extensionless files as .stmd', async () => {
+    await createFile('guia')
+    // Tree row plus auto-opened tab.
+    expect((await screen.findAllByText('guia.stmd')).length).toBeGreaterThan(0)
+    expect(provider.files.has('root/guia.stmd')).toBe(true)
+  })
+
+  it('keeps explicit extensions as typed', async () => {
+    await createFile('ideias.md')
+    expect((await screen.findAllByText('ideias.md')).length).toBeGreaterThan(0)
+    expect(provider.files.has('root/ideias.md')).toBe(true)
+    expect(provider.files.has('root/ideias.md.stmd')).toBe(false)
+  })
+
+  it('opens StudyMD rendered by default (no raw editor)', async () => {
+    await createFile('guia')
+    await openCreated('guia.stmd')
+    expect(await screen.findByTestId('study-live')).toBeTruthy()
+    expect(screen.queryByTestId('mock-editor')).toBeNull()
+  })
+
+  it('keeps plain Markdown on the raw editor', async () => {
+    await screen.findByText('notes')
+    fireEvent.click(row('notes'))
+    await screen.findByText('todo.md')
+    fireEvent.click(row('todo.md'))
+    await screen.findByTestId('mock-editor')
+    expect(screen.queryByTestId('study-live')).toBeNull()
+  })
+
+  it('writes notebook task toggles back to the file', async () => {
+    await createFile('lista')
+    await openCreated('lista.stmd')
+    await screen.findByTestId('study-live')
+    // New-note header: title on top, text box right below.
+    fireEvent.change(screen.getByTestId('study-note-title'), {
+      target: { value: 'Lista' },
+    })
+    const body = screen.getByTestId('study-note-body')
+    fireEvent.change(body, { target: { value: '- [ ] uma\n- [x] outra\n' } })
+    fireEvent.blur(body)
+    expect(await screen.findByText('Lista')).toBeTruthy()
+    const boxes = await screen.findAllByRole('checkbox')
+    fireEvent.click(boxes[0])
+    expect((await screen.findAllByRole('checkbox'))[0]).toBeChecked()
+  })
+})

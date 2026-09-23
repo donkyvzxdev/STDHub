@@ -16,7 +16,13 @@ import { Button } from '@/components/ui/button'
 import CodeEditor, { type EditorHandle } from './CodeEditor'
 import ExplorerTree, { type TreeDraft } from './ExplorerTree'
 import FileTabs from './FileTabs'
+import StmdToolbar from './StmdToolbar'
+import StudyLive, { type StudyLiveHandle } from './StudyLive'
 import { getLanguageId, imageMime } from '@/lib/editorLanguages'
+import {
+  ensureStudyExtension,
+  isStmdFile,
+} from '@/lib/stmd'
 import {
   baseName,
   childPath,
@@ -92,6 +98,8 @@ function EditorView({
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [terminalOpen, setTerminalOpen] = useState(false)
+  // Live StudyMD handle (toolbar drives the rendered notebook directly).
+  const liveRef = useRef<StudyLiveHandle | null>(null)
   const editorHandle = useRef<EditorHandle | null>(null)
   const blobUrls = useRef<Set<string>>(new Set())
 
@@ -482,6 +490,23 @@ function EditorView({
     setActivePath(path)
   }
 
+  /** Clicking a task in the rendered notebook writes back to the source. */
+  function toggleStmdTask(line: number): void {
+    const file = openFiles.find((f) => f.path === activePath)
+    if (!file) return
+    const lines = file.content.split('\n')
+    const current = lines[line]
+    if (!current) return
+    const next = current.replace(
+      /^(\s*[-*]\s*)\[( |x|X)\]/,
+      (_m, pre: string, mark: string) => `${pre}[${mark === ' ' ? 'x' : ' '}]`,
+    )
+    if (next === current) return
+    const updated = [...lines]
+    updated[line] = next
+    editContent(file.path, updated.join('\n'))
+  }
+
   function closePaths(paths: string[], force: boolean): void {
     const targets = openFiles.filter((f) => paths.includes(f.path))
     if (!force && targets.some((f) => f.dirty)) {
@@ -524,7 +549,11 @@ function EditorView({
     try {
       let refreshed = true
       if (draft.mode === 'create-file') {
-        const full = await provider.createFile(draft.dir, name)
+        // Notebook default: extensionless names become StudyMD notes.
+        const full = await provider.createFile(
+          draft.dir,
+          ensureStudyExtension(name),
+        )
         setDraft(null)
         refreshed = await refreshAll(root, expanded)
         const created = { path: full, name: full.split('/').pop() ?? full }
@@ -692,6 +721,7 @@ function EditorView({
   }
 
   const activeFile = openFiles.find((f) => f.path === activePath) ?? null
+  const activeIsStmd = activeFile ? isStmdFile(activeFile.name) : false
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -713,7 +743,22 @@ function EditorView({
             onCloseAll={closeAll}
             onSave={() => void saveActiveRef.current()}
           />
-        <div className="min-h-0 flex-1 overflow-hidden">
+        {activeIsStmd ? (
+          <div
+            // Keep the block editor focused while toolbar buttons act:
+            // mousedown would blur (commit+close) before onClick runs.
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <StmdToolbar
+              onWrap={(before, after) =>
+                liveRef.current?.wrapSelection(before, after)
+              }
+            onInsert={(text) => liveRef.current?.insertBlock(text)}
+            onOpenDrawing={() => liveRef.current?.startDraw()}
+            />
+          </div>
+        ) : null}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           {activeFile ? (
             activeFile.kind === 'image' && activeFile.blobUrl ? (
               <div className="flex h-full items-center justify-center overflow-auto p-4">
@@ -723,6 +768,13 @@ function EditorView({
                   className="max-h-full max-w-full object-contain"
                 />
               </div>
+            ) : activeIsStmd ? (
+              <StudyLive
+                ref={liveRef}
+                content={activeFile.content}
+                onChange={(value) => editContent(activeFile.path, value)}
+                onToggleTask={toggleStmdTask}
+              />
             ) : (
               <CodeEditor
                 key={activeFile.path}

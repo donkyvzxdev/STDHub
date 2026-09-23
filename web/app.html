@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="description" content="STDHub no navegador — notebook, calculadora, pesquisa e tutor. 100% offline (IA com sua chave)." />
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/app.css" />
+  <title>STDHub</title>
+</head>
+<body>
+  <div id="login">
+    <div class="card">
+      <div class="card-pad login-head">
+        <span class="login-logo"><img src="assets/logo.svg" alt="STDHub" /></span>
+        <h1 id="loginTitle"></h1>
+        <p class="muted" id="loginSub"></p>
+      </div>
+      <div class="login-body">
+        <p class="small muted" id="cloudOff"></p>
+        <button class="btn btn-secondary" id="guestBtn" type="button"></button>
+        <p class="small muted" id="guestNote"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="shell" hidden>
+    <aside id="sidebar" aria-label="STDHub"></aside>
+    <div id="main">
+      <div id="tabbar" role="tablist" aria-label="STDHub"></div>
+      <div id="content" data-testid="shell-body">
+        <div class="center-hint muted" id="centerHint" hidden></div>
+      </div>
+    </div>
+    <div id="dock" hidden>
+      <div id="dock-head" role="tablist" aria-label="Dock"></div>
+      <div id="dock-body"></div>
+    </div>
+  </div>
+
+  <script src="js/calculator.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/stmd.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/notebook.js"></script>
+  <script src="js/calcview.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/search.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/boot.js"></script>
+</body>
+</html>

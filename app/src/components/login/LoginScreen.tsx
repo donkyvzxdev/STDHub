@@ -53,7 +53,10 @@ function LoginScreen({ onGuest }: LoginScreenProps) {
   return (
     <div className="flex min-h-svh animate-in items-center justify-center bg-background p-6 fade-in duration-300">
       <Card className="w-full max-w-sm">
-        <CardHeader>
+        <CardHeader className="items-center justify-items-center text-center">
+          <span className="mb-1 flex size-16 items-center justify-center overflow-hidden rounded-2xl bg-white shadow">
+            <img src="/logo.svg" alt="STDHub" className="size-14" />
+          </span>
           <CardTitle>{t('auth.title')}</CardTitle>
           <CardDescription>{t('auth.subtitle')}</CardDescription>
         </CardHeader>

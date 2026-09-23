@@ -2,12 +2,18 @@ import { useEffect, useRef } from 'react'
 import type * as Monaco from 'monaco-editor'
 import { installCompletions, registerCompletionSource } from '@/lib/completion'
 import { markdownSource } from '@/lib/markdownCompletions'
+import { studySource } from '@/lib/studyCompletions'
 import { setupMonacoWorkers } from '@/lib/monacoEnv'
+import { registerStudyLanguage } from '@/lib/studyLanguage'
 
 export interface EditorHandle {
   undo(): void
   redo(): void
   focus(): void
+  /** Wraps the selection (or an empty caret) with a before/after pair. */
+  wrapSelection(before: string, after: string): void
+  /** Inserts text at the caret; line snippets go to the line start. */
+  insertAtCursor(text: string): void
 }
 
 interface CodeEditorProps {
@@ -79,7 +85,9 @@ function CodeEditor({
           ...MONACO_SUGGEST_OPTIONS,
         })
         registerCompletionSource(markdownSource)
-        installCompletions(monaco, ['markdown'])
+        registerCompletionSource(studySource)
+        registerStudyLanguage(monaco)
+        installCompletions(monaco, ['markdown', 'stmd'])
         editor.onDidChangeModelContent(() => {
           const current = editor?.getModel()?.getValue()
           if (typeof current === 'string') cbRef.current.onChange(current)
@@ -92,6 +100,60 @@ function CodeEditor({
           undo: () => editor?.trigger('menubar', 'undo', null),
           redo: () => editor?.trigger('menubar', 'redo', null),
           focus: () => editor?.focus(),
+          wrapSelection: (before, after) => {
+            const ed = editor
+            const model = ed?.getModel()
+            if (!ed || !model) return
+            const sel =
+              ed.getSelection() ?? new monaco.Range(1, 1, 1, 1)
+            const selected = model.getValueInRange(sel)
+            const start = model.getOffsetAt(sel.getStartPosition())
+            ed.executeEdits('stmd-toolbar', [
+              { range: sel, text: `${before}${selected}${after}` },
+            ])
+            const end = start + before.length + selected.length + after.length
+            const cursor = model.getPositionAt(
+              selected ? end : start + before.length,
+            )
+            ed.setSelection(
+              new monaco.Selection(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column,
+              ),
+            )
+            ed.focus()
+          },
+          insertAtCursor: (text) => {
+            const ed = editor
+            const model = ed?.getModel()
+            if (!ed || !model) return
+            const sel =
+              ed.getSelection() ?? new monaco.Range(1, 1, 1, 1)
+            const lineStart = /^(#{1,6}\s|> |-(\s\[[ x]\])?\s?)/.test(text)
+            let range = sel
+            let insert = text
+            if (lineStart) {
+              const lineNo = sel.startLineNumber
+              range = new monaco.Range(lineNo, 1, lineNo, 1)
+              insert =
+                model.getLineContent(lineNo).trim() === '' ? text : `\n${text}`
+            }
+            ed.executeEdits('stmd-toolbar', [{ range, text: insert }])
+            const cursor = model.getPositionAt(
+              model.getOffsetAt(range.getStartPosition()) + insert.length,
+            )
+            ed.setSelection(
+              new monaco.Selection(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column,
+              ),
+            )
+            ed.focus()
+          },
         }
       })
 
